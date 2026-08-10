@@ -16,7 +16,7 @@ export class Contact {
     required: true,
   })
   message: string;
-
+ 
   @Prop({
     enum: ['new', 'read'],
     default: 'new',
