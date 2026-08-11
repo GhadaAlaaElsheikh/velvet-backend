@@ -37,8 +37,8 @@ export class AuthController {
       await this.authService.googleLogin(req.user);
  console.log("🔥 GOOGLE LOGIN RESULT:", result);
 res.redirect(
-  `https://velvet-frontend-ppe32hy18-ghadaalaaelsheikhs-projects.vercel.app/auth/google/callback#accessToken=${result.accessToken}&userId=${result.user.id}`,
-); 
+  `https://velvet-frontend-three.vercel.app/auth/google/callback#accessToken=${result.accessToken}&userId=${result.user.id}`,
+);
   }
 
   @Post("register")
