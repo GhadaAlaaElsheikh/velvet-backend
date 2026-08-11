@@ -28,8 +28,9 @@ super({
     "GOOGLE_CLIENT_SECRET",
   ) as string,
 
-  callbackURL: "http://localhost:3001/auth/google/callback",
-
+callbackURL: configService.get<string>(
+  "GOOGLE_CALLBACK_URL",
+) as string,
   scope: ["email", "profile"],
 });
   }
