@@ -142,25 +142,26 @@ export class ReviewService {
     };
   }
 
-  async findByProduct(
-    productId: string,
-  ) {
-    const reviews =
-      await this.reviewModel
-        .find({
-          product: productId,
-        })
-        .populate(
-          'user',
-          'name image',
-        )
-        .sort({
-          createdAt: -1,
-        });
 
-    return {
-      reviews,
-      count: reviews.length,
-    };
+async findByProduct(productId: string) {
+  if (!Types.ObjectId.isValid(productId)) {
+    throw new BadRequestException("Invalid product ID");
   }
+
+  const reviews = await this.reviewModel
+    .find({
+      product: new Types.ObjectId(productId),
+    })
+    .populate("user", "name image")
+    .sort({
+      createdAt: -1,
+    });
+
+  return {
+    reviews,
+    count: reviews.length,
+  };
+}
+
+
 }
