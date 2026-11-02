@@ -1,3 +1,4 @@
+
 import {
   IsArray,
   IsEmail,
@@ -5,8 +6,20 @@ import {
   IsNumber,
   IsString,
   ValidateNested,
+  ArrayMinSize,
+  ArrayMaxSize,
+  IsOptional,
 } from "class-validator";
+
 import { Type } from "class-transformer";
+
+class GiftBagSelectionDto {
+  @IsMongoId()
+  product: string;
+
+  @IsString()
+  size: string;
+}
 
 class OrderItemDto {
   @IsMongoId()
@@ -15,11 +28,16 @@ class OrderItemDto {
   @IsNumber()
   quantity: number;
 
-  //@IsNumber()
-  //price: number;
-
-    @IsString()
+  @IsString()
   size: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(3)
+  @ArrayMaxSize(3)
+  @ValidateNested({ each: true })
+  @Type(() => GiftBagSelectionDto)
+  giftBagSelections?: GiftBagSelectionDto[];
 }
 
 export class CreateOrderDto {
@@ -48,5 +66,4 @@ export class CreateOrderDto {
 
   @IsString()
   address: string;
- 
 }

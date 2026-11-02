@@ -1,6 +1,8 @@
+ 
 import {
   Injectable,
   NotFoundException,
+  BadRequestException,
 } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
@@ -11,207 +13,309 @@ import { sendTelegramMessage } from "src/utils/telegram";
 import { User } from "src/users/schemas/user.schema";
 import { Product } from "src/products/schemas/product.schema";
 import { Category } from "src/categories/schemas/category.schema";
- 
+
 @Injectable()
 export class OrdersService {
   constructor(
     @InjectModel(Order.name)
     private readonly orderModel: Model<Order>,
-     @InjectModel(User.name)
-  private readonly userModel: Model<User>,
-   @InjectModel(Product.name)
-private readonly productModel: Model<Product>,
-@InjectModel(Category.name)
-private readonly categoryModel: Model<Category>,
-) {}
 
+    @InjectModel(User.name)
+    private readonly userModel: Model<User>,
 
-// Create Order
-async create(body: CreateOrderDto, userId: string) {
-  const shippingPrice = 40;
+    @InjectModel(Product.name)
+    private readonly productModel: Model<Product>,
 
-  // Get user
-  const user = await this.userModel.findById(userId);
+    @InjectModel(Category.name)
+    private readonly categoryModel: Model<Category>,
+  ) {}
 
-  if (!user) {
-    throw new NotFoundException("User not found");
-  }
+  // Create Order
+  async create(body: CreateOrderDto, userId: string) {
+    const shippingPrice = 40;
 
-  // Calculate subtotal
-/*  const subtotal = body.items.reduce(
-    (total, item) => {
-      return total + item.price * item.quantity;
-    },
-    0,
-  );
-*/
-// Calculate products prices from database
-  
-  // Get products and calculate their original prices
-const productsData = await Promise.all(
-  body.items.map(async (item) => {
-    const product = await this.productModel.findById(item.product);
+    const user = await this.userModel.findById(userId);
 
-    if (!product) {
-      throw new NotFoundException(
-        `Product not found: ${item.product}`,
-      );
+    if (!user) {
+      throw new NotFoundException("User not found");
     }
 
-    let originalPrice = product.price;
+    // Get products and calculate their prices
+    const productsData = await Promise.all(
+      body.items.map(async (item) => {
+        const product = await this.productModel.findById(item.product);
 
-    if (product.sizes && product.sizes.length > 0) {
-      const selectedSize = product.sizes.find(
-        (size) =>
-          size.name.trim().toLowerCase() ===
-          item.size.trim().toLowerCase(),
-      );
+        if (!product) {
+          throw new NotFoundException(
+            `Product not found: ${item.product}`,
+          );
+        }
 
-      if (!selectedSize) {
-        throw new NotFoundException(
-          `Size ${item.size} not found for ${product.name}`,
+        let originalPrice = product.price;
+
+        if (product.sizes && product.sizes.length > 0) {
+          const selectedSize = product.sizes.find(
+            (size) =>
+              size.name.trim().toLowerCase() ===
+              item.size.trim().toLowerCase(),
+          );
+
+          if (!selectedSize) {
+            throw new NotFoundException(
+              `Size ${item.size} not found for ${product.name}`,
+            );
+          }
+
+          originalPrice = selectedSize.price;
+        }
+
+        const category = await this.categoryModel.findById(
+          product.category,
         );
+
+        const categoryName = category?.name.trim().toLowerCase();
+
+        const isEligibleForBundle =
+          ["perfumes", "luxury perfumes"].includes(
+            categoryName || "",
+          ) &&
+          item.size.replace(/\s/g, "").toLowerCase() === "60ml";
+
+        let giftBagSelections: {
+          product: any;
+          size: string;
+        }[] = [];
+
+        if (product.isGiftBag) {
+          if (
+            !item.giftBagSelections ||
+            item.giftBagSelections.length !== 3
+          ) {
+            throw new BadRequestException(
+              "Gift Bag must contain exactly 3 perfumes",
+            );
+          }
+
+          giftBagSelections = await Promise.all(
+            item.giftBagSelections.map(async (selection) => {
+              const selectedProduct =
+                await this.productModel.findById(selection.product);
+
+              if (!selectedProduct) {
+                throw new NotFoundException(
+                  `Selected perfume not found: ${selection.product}`,
+                );
+              }
+
+              const selectedCategory =
+                await this.categoryModel.findById(
+                  selectedProduct.category,
+                );
+
+              const selectedCategoryName =
+                selectedCategory?.name.trim().toLowerCase();
+
+              if (
+                !["perfumes", "luxury perfumes"].includes(
+                  selectedCategoryName || "",
+                )
+              ) {
+                throw new BadRequestException(
+                  `${selectedProduct.name} is not an eligible perfume`,
+                );
+              }
+
+              const selectedSize = selectedProduct.sizes?.find(
+                (size) =>
+                  size.name.replace(/\s/g, "").toLowerCase() ===
+                  "10ml",
+              );
+
+              if (
+                !selectedSize ||
+                selection.size.replace(/\s/g, "").toLowerCase() !==
+                  "10ml"
+              ) {
+                throw new BadRequestException(
+                  `${selectedProduct.name} must be selected in 10ml size`,
+                );
+              }
+
+              return {
+                product: selectedProduct._id,
+                size: "10ml",
+              };
+            }),
+          );
+        } else if (
+          item.giftBagSelections &&
+          item.giftBagSelections.length > 0
+        ) {
+          throw new BadRequestException(
+            "Perfume selections are only allowed for Gift Bag",
+          );
+        }
+
+        return {
+          product,
+          quantity: item.quantity,
+          size: item.size,
+          originalPrice,
+          isEligibleForBundle,
+          categoryName,
+          isGiftBag: product.isGiftBag,
+          giftBagSelections,
+        };
+      }),
+    );
+
+    // Count eligible 60ml perfume units
+    const totalEligibleUnits = productsData.reduce(
+      (total, item) =>
+        total + (item.isEligibleForBundle ? item.quantity : 0),
+      0,
+    );
+
+    // Every complete group of five costs 1000 EGP
+    let bundleUnitsRemaining =
+      Math.floor(totalEligibleUnits / 5) * 5;
+
+    const calculatedItems: any[] = [];
+
+    for (const item of productsData) {
+      if (item.isGiftBag) {
+        calculatedItems.push({
+          product: item.product._id,
+          quantity: item.quantity,
+          size: item.size,
+          price: 300,
+          giftBagSelections: item.giftBagSelections,
+        });
+
+        continue;
       }
 
-      originalPrice = selectedSize.price;
-    }
+      let bundleQuantity = 0;
 
-    const category = await this.categoryModel.findById(
-      product.category,
-    );
+      if (item.isEligibleForBundle) {
+        bundleQuantity = Math.min(
+          item.quantity,
+          bundleUnitsRemaining,
+        );
 
-const categoryName = category?.name.trim().toLowerCase();
+        bundleUnitsRemaining -= bundleQuantity;
+      }
 
-const isEligibleForBundle =
-  ["perfumes", "luxury perfumes"].includes(categoryName || "") &&
-  item.size.replace(/\s/g, "").toLowerCase() === "60ml";
-    return {
-      product,
-      quantity: item.quantity,
-      size: item.size,
-      originalPrice,
-      isEligibleForBundle,
-       isGiftBag: product.isGiftBag,
-    };
-  }),
-);
+      const remainingQuantity =
+        item.quantity - bundleQuantity;
 
-// Count eligible 60ml perfume units
-const totalEligibleUnits = productsData.reduce(
-  (total, item) =>
-    total + (item.isEligibleForBundle ? item.quantity : 0),
-  0,
-);
+      if (bundleQuantity > 0) {
+        calculatedItems.push({
+          product: item.product._id,
+          quantity: bundleQuantity,
+          size: item.size,
+          price: 200,
+          giftBagSelections: [],
+        });
+      }
+       if (remainingQuantity > 0) {
+  let discountRate = 0;
 
-// Every complete group of five costs 1000 EGP
-let bundleUnitsRemaining =
-  Math.floor(totalEligibleUnits / 5) * 5;
-
-const calculatedItems: {
-  product: any;
-  quantity: number;
-  size: string;
-  price: number;
-}[] = [];
-
-for (const item of productsData) {
-  if (item.isGiftBag) {
-    calculatedItems.push({
-      product: item.product._id,
-      quantity: item.quantity,
-      size: item.size,
-      price: 300,
-    });
-
-    continue;
-  }
-  let bundleQuantity = 0;
-
-  if (item.isEligibleForBundle) {
-    bundleQuantity = Math.min(
-      item.quantity,
-      bundleUnitsRemaining,
-    );
-
-    bundleUnitsRemaining -= bundleQuantity;
+  if (
+    ["perfumes", "luxury perfumes"].includes(
+      item.categoryName || "",
+    )
+  ) {
+    discountRate = 0.20;
+  } else if (
+    ["bukhoor", "bakhoor"].includes(
+      item.categoryName || "",
+    )
+  ) {
+    discountRate = 0.20;
+  } else if (
+    ["candles", "candle"].includes(
+      item.categoryName || "",
+    )
+  ) {
+    discountRate = 0.30;
   }
 
-  const remainingQuantity = item.quantity - bundleQuantity;
+  const finalPrice = Number(
+    (item.originalPrice * (1 - discountRate)).toFixed(2),
+  );
 
-  if (bundleQuantity > 0) {
-    calculatedItems.push({
-      product: item.product._id,
-      quantity: bundleQuantity,
-      size: item.size,
-      price: 200,
-    });
-  }
-
-  if (remainingQuantity > 0) {
-    calculatedItems.push({
-      product: item.product._id,
-      quantity: remainingQuantity,
-      size: item.size,
-      price: Number(
-        (item.originalPrice * 0.8).toFixed(2),
-      ),
-    });
-  }
+  calculatedItems.push({
+    product: item.product._id,
+    quantity: remainingQuantity,
+    size: item.size,
+    price: finalPrice,
+    giftBagSelections: [],
+  });
+}
 }
 
-const subtotal = calculatedItems.reduce(
-  (total, item) => total + item.price * item.quantity,
-  0,
-);
+    const subtotal = calculatedItems.reduce(
+      (total, item) =>
+        total + item.price * item.quantity,
+      0,
+    );
 
-const totalPrice = subtotal + shippingPrice;
- 
-//  const totalPrice = subtotal + shippingPrice;
+    const totalPrice = subtotal + shippingPrice;
 
-  // Create order
-  const order = await this.orderModel.create({
-    user: userId,
+    // Create order
+    const order = await this.orderModel.create({
+      user: userId,
+      firstName: body.firstName,
+      lastName: body.lastName,
+      email: body.email,
+      phone: body.phone,
+      country: body.country,
+      city: body.city,
+      address: body.address,
+      items: calculatedItems,
+      shippingPrice,
+      totalPrice,
+    });
 
-    // Customer information
-    firstName: body.firstName,
-    lastName: body.lastName,
-    email: body.email,
-    phone: body.phone,
+    // Populate order products and Gift Bag selections
+    const populatedOrder = await this.orderModel
+      .findById(order._id)
+      .populate("items.product")
+      .populate("items.giftBagSelections.product");
 
-    // Shipping address
-    country: body.country,
-    city: body.city,
-    address: body.address,
+    if (!populatedOrder) {
+      throw new NotFoundException("Order not found");
+    }
 
-    // Products
-    //items: body.items,
-items: calculatedItems,
-    // Prices
-    shippingPrice,
-    totalPrice,
-  });
+    const itemsText = (populatedOrder.items as any[])
+      .map((item) => {
+        const product = item.product;
 
-  // Get products names
-  const populatedOrder = await this.orderModel
-    .findById(order._id)
-    .populate("items.product");
+        let text = `🛍️ ${product?.name || "Unknown Product"} × ${item.quantity} — ${
+          item.price * item.quantity
+        } EGP`;
 
-  if (!populatedOrder) {
-    throw new NotFoundException("Order not found");
-  }
+        if (
+          item.giftBagSelections &&
+          item.giftBagSelections.length > 0
+        ) {
+          const selectedPerfumes = item.giftBagSelections
+            .map(
+              (selection: any, index: number) =>
+                `${index + 1}. ${selection.product?.name || "Unknown Perfume"} (${selection.size})`,
+            )
+            .join("\n");
 
-  const itemsText = (populatedOrder.items as any[])
-    .map((item) => {
-      const product = item.product;
+          text += `\n🎁 Gift Bag perfumes:\n${selectedPerfumes}`;
+        }
 
-      return `🛍️ ${product?.name || "Unknown Product"} × ${
-        item.quantity
-      } — ${item.price * item.quantity} EGP`;
-    })
-    .join("\n");
+        return text;
+      })
+      .join("\n\n");
 
-  // Telegram message
-  const message = `
+    // Telegram message
+    const message = `
 🛍️ NEW VELVET ORDER
 
 👤 Customer:
@@ -238,11 +342,10 @@ ${itemsText}
 📌 Status: Pending
 `;
 
-  await sendTelegramMessage(message);
+    await sendTelegramMessage(message);
 
-  return order;
-}
-
+    return order;
+  }
 
   // Get All Orders
   async findAll() {
@@ -250,6 +353,7 @@ ${itemsText}
       .find()
       .populate("user")
       .populate("items.product")
+      .populate("items.giftBagSelections.product")
       .sort({ createdAt: -1 });
   }
 
@@ -258,6 +362,7 @@ ${itemsText}
     return this.orderModel
       .find({ user: userId })
       .populate("items.product")
+      .populate("items.giftBagSelections.product")
       .sort({ createdAt: -1 });
   }
 
@@ -266,7 +371,8 @@ ${itemsText}
     const order = await this.orderModel
       .findById(id)
       .populate("user")
-      .populate("items.product");
+      .populate("items.product")
+      .populate("items.giftBagSelections.product");
 
     if (!order) {
       throw new NotFoundException("Order not found");
@@ -280,9 +386,7 @@ ${itemsText}
     const order = await this.orderModel.findByIdAndUpdate(
       id,
       { status },
-      {
-        new: true,
-      },
+      { new: true },
     );
 
     if (!order) {

@@ -1,7 +1,26 @@
- import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { HydratedDocument, Types } from "mongoose";
 
 export type OrderDocument = HydratedDocument<Order>;
+
+@Schema({ _id: false })
+export class GiftBagSelection {
+  @Prop({
+    type: Types.ObjectId,
+    ref: "Product",
+    required: true,
+  })
+  product: Types.ObjectId;
+
+  @Prop({
+    required: true,
+  })
+  size: string;
+}
+
+export const GiftBagSelectionSchema =
+  SchemaFactory.createForClass(GiftBagSelection);
 
 @Schema({ _id: false })
 export class OrderItem {
@@ -12,22 +31,20 @@ export class OrderItem {
   })
   product: Types.ObjectId;
 
-  @Prop({
-    required: true,
-    min: 1,
-  })
+  @Prop({ required: true, min: 1 })
   quantity: number;
-  
-    @Prop({
-    required: true,
-  })
+
+  @Prop({ required: true })
   size: string;
-  
-  @Prop({
-    required: true,
-    min: 0,
-  })
+
+  @Prop({ required: true, min: 0 })
   price: number;
+
+  @Prop({
+    type: [GiftBagSelectionSchema],
+    default: [],
+  })
+  giftBagSelections: GiftBagSelection[];
 }
 
 export const OrderItemSchema =
@@ -42,46 +59,26 @@ export class Order {
   })
   user: Types.ObjectId;
 
-  // Customer Information
-
-  @Prop({
-    required: true,
-  })
+  @Prop({ required: true })
   firstName: string;
 
-  @Prop({
-    required: true,
-  })
+  @Prop({ required: true })
   lastName: string;
 
-  @Prop({
-    required: true,
-  })
+  @Prop({ required: true })
   email: string;
 
-  @Prop({
-    required: true,
-  })
+  @Prop({ required: true })
   phone: string;
 
-  // Shipping Address
-
-  @Prop({
-    required: true,
-  })
+  @Prop({ required: true })
   country: string;
 
-  @Prop({
-    required: true,
-  })
+  @Prop({ required: true })
   city: string;
 
-  @Prop({
-    required: true,
-  })
+  @Prop({ required: true })
   address: string;
-
-  // Products
 
   @Prop({
     type: [OrderItemSchema],
@@ -89,20 +86,11 @@ export class Order {
   })
   items: OrderItem[];
 
-  // Prices
-
-  @Prop({
-    required: true,
-    default: 35,
-  })
+  @Prop({ required: true, default: 40 })
   shippingPrice: number;
 
-  @Prop({
-    required: true,
-  })
+  @Prop({ required: true })
   totalPrice: number;
-
-  // Order Status
 
   @Prop({
     enum: [
