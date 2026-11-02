@@ -1,5 +1,4 @@
-
-import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+ import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { HydratedDocument, Types } from "mongoose";
 
 export type OrderDocument = HydratedDocument<Order>;
@@ -18,7 +17,12 @@ export class OrderItem {
     min: 1,
   })
   quantity: number;
-
+  
+    @Prop({
+    required: true,
+  })
+  size: string;
+  
   @Prop({
     required: true,
     min: 0,
@@ -115,4 +119,3 @@ export class Order {
 
 export const OrderSchema =
   SchemaFactory.createForClass(Order);
-

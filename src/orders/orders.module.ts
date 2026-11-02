@@ -9,6 +9,8 @@ import {
   OrderSchema,
 } from './schemas/order.schema';
 import { User, UserSchema } from 'src/users/schemas/user.schema';
+import { Product, ProductSchema } from 'src/products/schemas/product.schema';
+import { Category, CategorySchema } from 'src/categories/schemas/category.schema';
 
 @Module({
   imports: [
@@ -21,6 +23,8 @@ import { User, UserSchema } from 'src/users/schemas/user.schema';
         name: User.name,
         schema: UserSchema,
       },
+      { name: Category.name, schema: CategorySchema },
+      { name: Product.name, schema: ProductSchema },
     ]),
   ],
   controllers: [OrdersController],

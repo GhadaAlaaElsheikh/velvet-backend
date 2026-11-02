@@ -60,7 +60,11 @@ export class Product {
     default: '',
   })
   badge: string;
-
+   @Prop({
+    default: false,
+  })
+  isGiftBag: boolean; 
+  
   @Prop({
     default: 0,
     min: 0,

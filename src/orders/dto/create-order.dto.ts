@@ -15,8 +15,11 @@ class OrderItemDto {
   @IsNumber()
   quantity: number;
 
-  @IsNumber()
-  price: number;
+  //@IsNumber()
+  //price: number;
+
+    @IsString()
+  size: string;
 }
 
 export class CreateOrderDto {
@@ -45,4 +48,5 @@ export class CreateOrderDto {
 
   @IsString()
   address: string;
+ 
 }

@@ -57,7 +57,11 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   badge?: string;
-
+  
+    @IsOptional()
+  @IsIn([true, false])
+  isGiftBag?: boolean;
+  
   @IsOptional()
   @IsNumber()
   @Min(0)
