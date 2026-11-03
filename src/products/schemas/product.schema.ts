@@ -82,6 +82,26 @@ export class Product {
   })
   burnType: string;
 
+    @Prop({
+    type: [
+      {
+        name: {
+          type: String,
+          required: true,
+        },
+        description: {
+          type: String,
+          required: true,
+        },
+      },
+    ],
+    default: [],
+  })
+  scents: {
+    name: string;
+    description: string;
+  }[];
+  
   @Prop({
     type: [
       {

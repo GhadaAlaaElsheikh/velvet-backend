@@ -5,6 +5,7 @@ import { HydratedDocument, Types } from "mongoose";
 export type OrderDocument = HydratedDocument<Order>;
 
 @Schema({ _id: false })
+@Schema({ _id: false })
 export class GiftBagSelection {
   @Prop({
     type: Types.ObjectId,
@@ -18,8 +19,14 @@ export class GiftBagSelection {
   })
   size: string;
 
+  @Prop({
+    required: true,
+    enum: ["bakhoor", "candle", "perfume"],
+  })
+  type: string;
+
   @Prop()
-scent?: string;
+  scent?: string;
 }
 
 export const GiftBagSelectionSchema =

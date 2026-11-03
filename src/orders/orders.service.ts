@@ -1,4 +1,4 @@
- 
+
 import {
   Injectable,
   NotFoundException,
@@ -84,26 +84,50 @@ export class OrdersService {
         let giftBagSelections: {
           product: any;
           size: string;
+          type: string;
+          scent?: string;
         }[] = [];
 
+        // Validate Gift Bag selections
         if (product.isGiftBag) {
+          const selections = item.giftBagSelections;
+
+          if (!selections || selections.length !== 5) {
+            throw new BadRequestException(
+              "Gift Bag must contain 1 bakhoor, 1 candle, and 3 perfumes",
+            );
+          }
+
+          const bakhoorSelections = selections.filter(
+            (selection) => selection.type === "bakhoor",
+          );
+
+          const candleSelections = selections.filter(
+            (selection) => selection.type === "candle",
+          );
+
+          const perfumeSelections = selections.filter(
+            (selection) => selection.type === "perfume",
+          );
+
           if (
-            !item.giftBagSelections ||
-            item.giftBagSelections.length !== 3
+            bakhoorSelections.length !== 1 ||
+            candleSelections.length !== 1 ||
+            perfumeSelections.length !== 3
           ) {
             throw new BadRequestException(
-              "Gift Bag must contain exactly 3 perfumes",
+              "Gift Bag must contain exactly 1 bakhoor, 1 candle, and 3 perfumes",
             );
           }
 
           giftBagSelections = await Promise.all(
-            item.giftBagSelections.map(async (selection) => {
+            selections.map(async (selection) => {
               const selectedProduct =
                 await this.productModel.findById(selection.product);
 
               if (!selectedProduct) {
                 throw new NotFoundException(
-                  `Selected perfume not found: ${selection.product}`,
+                  `Selected product not found: ${selection.product}`,
                 );
               }
 
@@ -115,35 +139,85 @@ export class OrdersService {
               const selectedCategoryName =
                 selectedCategory?.name.trim().toLowerCase();
 
-              if (
-                !["perfumes", "luxury perfumes"].includes(
-                  selectedCategoryName || "",
-                )
-              ) {
+              let requiredSize = "";
+
+              if (selection.type === "bakhoor") {
+                requiredSize = "30gm";
+
+                if (
+                  !["bakhoor", "bukhoor"].includes(
+                    selectedCategoryName || "",
+                  )
+                ) {
+                  throw new BadRequestException(
+                    `${selectedProduct.name} is not a bakhoor`,
+                  );
+                }
+
+                if (!selection.scent?.trim()) {
+                  throw new BadRequestException(
+                    "Please select a scent for the bakhoor",
+                  );
+                }
+              } else if (selection.type === "candle") {
+                requiredSize = "25gm";
+
+                if (
+                  !["candles", "candle"].includes(
+                    selectedCategoryName || "",
+                  )
+                ) {
+                  throw new BadRequestException(
+                    `${selectedProduct.name} is not a candle`,
+                  );
+                }
+              } else if (selection.type === "perfume") {
+                requiredSize = "10ml";
+
+                if (
+                  !["perfumes", "luxury perfumes"].includes(
+                    selectedCategoryName || "",
+                  )
+                ) {
+                  throw new BadRequestException(
+                    `${selectedProduct.name} is not an eligible perfume`,
+                  );
+                }
+              } else {
                 throw new BadRequestException(
-                  `${selectedProduct.name} is not an eligible perfume`,
+                  "Invalid Gift Bag selection type",
+                );
+              }
+
+              const normalizedSelectionSize = selection.size
+                .replace(/\s/g, "")
+                .toLowerCase();
+
+              if (normalizedSelectionSize !== requiredSize) {
+                throw new BadRequestException(
+                  `${selectedProduct.name} must be selected in ${requiredSize} size`,
                 );
               }
 
               const selectedSize = selectedProduct.sizes?.find(
                 (size) =>
                   size.name.replace(/\s/g, "").toLowerCase() ===
-                  "10ml",
+                  requiredSize,
               );
 
-              if (
-                !selectedSize ||
-                selection.size.replace(/\s/g, "").toLowerCase() !==
-                  "10ml"
-              ) {
+              if (!selectedSize) {
                 throw new BadRequestException(
-                  `${selectedProduct.name} must be selected in 10ml size`,
+                  `${selectedProduct.name} does not have size ${requiredSize}`,
                 );
               }
 
               return {
                 product: selectedProduct._id,
-                size: "10ml",
+                size: requiredSize,
+                type: selection.type,
+                ...(selection.type === "bakhoor"
+                  ? { scent: selection.scent!.trim() }
+                  : {}),
               };
             }),
           );
@@ -152,7 +226,7 @@ export class OrdersService {
           item.giftBagSelections.length > 0
         ) {
           throw new BadRequestException(
-            "Perfume selections are only allowed for Gift Bag",
+            "Gift Bag selections are only allowed for Gift Bag",
           );
         }
 
@@ -160,7 +234,7 @@ export class OrdersService {
           product,
           quantity: item.quantity,
           size: item.size,
-            scent: item.scent,
+          scent: item.scent,
           originalPrice,
           isEligibleForBundle,
           categoryName,
@@ -184,6 +258,7 @@ export class OrdersService {
     const calculatedItems: any[] = [];
 
     for (const item of productsData) {
+      // Gift Bag has a fixed price of 300 EGP
       if (item.isGiftBag) {
         calculatedItems.push({
           product: item.product._id,
@@ -221,43 +296,44 @@ export class OrdersService {
           giftBagSelections: [],
         });
       }
-       if (remainingQuantity > 0) {
-  let discountRate = 0;
 
-  if (
-    ["perfumes", "luxury perfumes"].includes(
-      item.categoryName || "",
-    )
-  ) {
-    discountRate = 0.20;
-  } else if (
-    ["bukhoor", "bakhoor"].includes(
-      item.categoryName || "",
-    )
-  ) {
-    discountRate = 0.20;
-  } else if (
-    ["candles", "candle"].includes(
-      item.categoryName || "",
-    )
-  ) {
-    discountRate = 0.30;
-  }
+      if (remainingQuantity > 0) {
+        let discountRate = 0;
 
-  const finalPrice = Number(
-    (item.originalPrice * (1 - discountRate)).toFixed(2),
-  );
+        if (
+          ["perfumes", "luxury perfumes"].includes(
+            item.categoryName || "",
+          )
+        ) {
+          discountRate = 0.20;
+        } else if (
+          ["bukhoor", "bakhoor"].includes(
+            item.categoryName || "",
+          )
+        ) {
+          discountRate = 0.20;
+        } else if (
+          ["candles", "candle"].includes(
+            item.categoryName || "",
+          )
+        ) {
+          discountRate = 0.30;
+        }
 
-  calculatedItems.push({
-    product: item.product._id,
-    quantity: remainingQuantity,
-    size: item.size,
-    price: finalPrice,
-    scent: item.scent,
-    giftBagSelections: [],
-  });
-}
-}
+        const finalPrice = Number(
+          (item.originalPrice * (1 - discountRate)).toFixed(2),
+        );
+
+        calculatedItems.push({
+          product: item.product._id,
+          quantity: remainingQuantity,
+          size: item.size,
+          price: finalPrice,
+          scent: item.scent,
+          giftBagSelections: [],
+        });
+      }
+    }
 
     const subtotal = calculatedItems.reduce(
       (total, item) =>
@@ -299,21 +375,32 @@ export class OrdersService {
         let text = `🛍️ ${product?.name || "Unknown Product"} × ${item.quantity} — ${
           item.price * item.quantity
         } EGP`;
-if (item.scent) {
-  text += `\n🌸 Scent: ${item.scent}`;
-}
+
+        if (item.scent) {
+          text += `\n🌸 Scent: ${item.scent}`;
+        }
+
         if (
           item.giftBagSelections &&
           item.giftBagSelections.length > 0
         ) {
-          const selectedPerfumes = item.giftBagSelections
-            .map(
-              (selection: any, index: number) =>
-                `${index + 1}. ${selection.product?.name || "Unknown Perfume"} (${selection.size})`,
-            )
+          const selectedItems = item.giftBagSelections
+            .map((selection: any, index: number) => {
+              const selectedProduct = selection.product;
+
+              let selectionText =
+                `${index + 1}. ${selectedProduct?.name || "Unknown Product"}` +
+                ` (${selection.type}) (${selection.size})`;
+
+              if (selection.scent) {
+                selectionText += ` - Scent: ${selection.scent}`;
+              }
+
+              return selectionText;
+            })
             .join("\n");
 
-          text += `\n🎁 Gift Bag perfumes:\n${selectedPerfumes}`;
+          text += `\n🎁 Gift Bag selections:\n${selectedItems}`;
         }
 
         return text;

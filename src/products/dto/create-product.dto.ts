@@ -21,7 +21,15 @@ class ProductSizeDto {
   @Min(0)
   price: number;
 }
+class ProductScentDto {
+  @IsString()
+  @IsNotEmpty()
+  name: string;
 
+  @IsString()
+  @IsNotEmpty()
+  description: string;
+}
 export class CreateProductDto {
   @IsString()
   @IsNotEmpty()
@@ -31,6 +39,12 @@ export class CreateProductDto {
   @IsNotEmpty()
   description: string;
 
+    @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProductScentDto)
+  scents?: ProductScentDto[];
+  
   @IsNumber()
   @Min(0)
   price: number;

@@ -9,6 +9,7 @@ import {
   ArrayMinSize,
   ArrayMaxSize,
   IsOptional,
+  IsIn,
 } from "class-validator";
 
 import { Type } from "class-transformer";
@@ -19,8 +20,14 @@ class GiftBagSelectionDto {
 
   @IsString()
   size: string;
-}
 
+  @IsIn(["bakhoor", "candle", "perfume"])
+  type: string;
+
+  @IsOptional()
+  @IsString()
+  scent?: string;
+}
 class OrderItemDto {
   @IsMongoId()
   product: string;
@@ -37,8 +44,8 @@ class OrderItemDto {
 
   @IsOptional()
   @IsArray()
-  @ArrayMinSize(3)
-  @ArrayMaxSize(3)
+  @ArrayMinSize(5)
+  @ArrayMaxSize(5)
   @ValidateNested({ each: true })
   @Type(() => GiftBagSelectionDto)
   giftBagSelections?: GiftBagSelectionDto[];
