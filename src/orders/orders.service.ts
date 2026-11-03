@@ -160,6 +160,7 @@ export class OrdersService {
           product,
           quantity: item.quantity,
           size: item.size,
+            scent: item.scent,
           originalPrice,
           isEligibleForBundle,
           categoryName,
@@ -189,6 +190,7 @@ export class OrdersService {
           quantity: item.quantity,
           size: item.size,
           price: 300,
+          scent: item.scent,
           giftBagSelections: item.giftBagSelections,
         });
 
@@ -215,6 +217,7 @@ export class OrdersService {
           quantity: bundleQuantity,
           size: item.size,
           price: 200,
+          scent: item.scent,
           giftBagSelections: [],
         });
       }
@@ -250,6 +253,7 @@ export class OrdersService {
     quantity: remainingQuantity,
     size: item.size,
     price: finalPrice,
+    scent: item.scent,
     giftBagSelections: [],
   });
 }
@@ -295,7 +299,9 @@ export class OrdersService {
         let text = `🛍️ ${product?.name || "Unknown Product"} × ${item.quantity} — ${
           item.price * item.quantity
         } EGP`;
-
+if (item.scent) {
+  text += `\n🌸 Scent: ${item.scent}`;
+}
         if (
           item.giftBagSelections &&
           item.giftBagSelections.length > 0

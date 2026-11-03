@@ -31,6 +31,10 @@ class OrderItemDto {
   @IsString()
   size: string;
 
+    @IsOptional()
+  @IsString()
+  scent?: string;
+
   @IsOptional()
   @IsArray()
   @ArrayMinSize(3)

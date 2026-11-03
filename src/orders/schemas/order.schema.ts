@@ -17,6 +17,9 @@ export class GiftBagSelection {
     required: true,
   })
   size: string;
+
+  @Prop()
+scent?: string;
 }
 
 export const GiftBagSelectionSchema =
