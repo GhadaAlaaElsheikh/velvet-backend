@@ -38,13 +38,14 @@ class OrderItemDto {
   @IsString()
   size: string;
 
-    @IsOptional()
+  @IsOptional()
   @IsString()
   scent?: string;
 
+  @IsOptional()
   @IsNumber()
-@Type(() => Number)
-price: number;
+  @Type(() => Number)
+  price?: number;
 
   @IsOptional()
   @IsArray()
