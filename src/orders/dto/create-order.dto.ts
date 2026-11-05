@@ -42,6 +42,10 @@ class OrderItemDto {
   @IsString()
   scent?: string;
 
+  @IsNumber()
+@Type(() => Number)
+price: number;
+
   @IsOptional()
   @IsArray()
   @ArrayMinSize(5)

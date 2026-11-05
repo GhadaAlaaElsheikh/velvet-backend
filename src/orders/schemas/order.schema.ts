@@ -50,6 +50,9 @@ export class OrderItem {
   @Prop({ required: true, min: 0 })
   price: number;
 
+  @Prop()
+scent?: string;
+
   @Prop({
     type: [GiftBagSelectionSchema],
     default: [],
